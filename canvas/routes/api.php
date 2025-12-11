@@ -20,5 +20,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::prefix('canvas')->group(function () {
     Route::get('/courses', [CanvasController::class, 'getCourses']);
     Route::get('/courses/{courseId}/students', [CanvasController::class, 'getStudents']);
+    Route::get('/users/{userId}', [CanvasController::class, 'getUser']);
 });
 

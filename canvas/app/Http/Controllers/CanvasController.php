@@ -11,11 +11,11 @@ class CanvasController extends Controller
         $courses = $canvas->getCourses();
         return response()->json($courses);
     }
-    public function getStudents($courseId, CanvasApiService $canvas)
-{
-    return $canvas->request('get', "/courses/$courseId/users", [
-        'enrollment_type' => 'student'
-    ]);
-}
+
+    public function getUser($userId, CanvasApiService $canvas)
+    {
+        $user = $canvas->getUser($userId);
+        return response()->json($user);
+    }
 
 }
