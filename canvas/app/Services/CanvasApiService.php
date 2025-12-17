@@ -173,5 +173,195 @@ class CanvasApiService
         //'result'   => $submit->json()
     ]);
     }
-    public function 
+    public function getAssignments($courseId)
+    {
+        return $this->request('get', '/api/v1/courses/' . $courseId . '/assignments' );
+    }
+
+    /**
+     * Download all student submissions for an assignment as a zip file
+     */
+    public function downloadAssignmentSubmissions($courseId, $assignmentId)
+    {
+        $domain = $this->baseUrl;
+        $token = $this->token;
+
+        // Get all submissions for the assignment
+        try {
+            $submissionsResponse = Http::withToken($token)
+                ->timeout(60)
+                ->accept('application/json')
+                ->withHeaders([
+                    'Accept-Encoding' => 'gzip, deflate'
+                ])
+                ->get(
+                    "$domain/api/v1/courses/$courseId/assignments/$assignmentId/submissions",
+                    ['include' => ['user', 'submission_history']]
+                );
+
+            if (!$submissionsResponse->successful()) {
+                return response()->json([
+                    'error' => 'Cannot get submissions',
+                    'status' => $submissionsResponse->status(),
+                    'detail' => $submissionsResponse->json()
+                ], 400);
+            }
+
+            $submissions = $submissionsResponse->json();
+
+            // Check if there are any submissions with attachments
+            $hasAttachments = false;
+            foreach ($submissions as $submission) {
+                if (isset($submission['attachments']) && !empty($submission['attachments'])) {
+                    $hasAttachments = true;
+                    break;
+                }
+            }
+
+            if (!$hasAttachments) {
+                return response()->json([
+                    'message' => 'No submissions with attachments found for this assignment',
+                    'total_submissions' => count($submissions)
+                ], 404);
+            }
+
+            // Create a temporary directory to store downloaded files
+            $tempDir = storage_path('app/temp/submissions_' . $assignmentId . '_' . time());
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+
+            $downloadedFiles = [];
+            $failedDownloads = [];
+
+            // Download each submission's attachments
+            foreach ($submissions as $submission) {
+                if (!isset($submission['attachments']) || empty($submission['attachments'])) {
+                    continue;
+                }
+
+                $userId = $submission['user_id'] ?? 'unknown';
+                $userName = $submission['user']['name'] ?? 'Unknown User';
+
+                // Sanitize username for folder name
+                $safeUserName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $userName);
+                $userDir = $tempDir . '/' . $userId . '_' . $safeUserName;
+
+                if (!file_exists($userDir)) {
+                    mkdir($userDir, 0755, true);
+                }
+
+                foreach ($submission['attachments'] as $attachment) {
+                    try {
+                        $fileUrl = $attachment['url'];
+                        $fileName = $attachment['filename'];
+
+                        // Download the file with proper options
+                        $fileContent = Http::withToken($token)
+                            ->timeout(120)
+                            ->withOptions([
+                                'decode_content' => true,
+                                'verify' => false
+                            ])
+                            ->get($fileUrl);
+
+                        if ($fileContent->successful()) {
+                            $filePath = $userDir . '/' . $fileName;
+                            file_put_contents($filePath, $fileContent->body());
+                            $downloadedFiles[] = $filePath;
+                        } else {
+                            $failedDownloads[] = [
+                                'user' => $userName,
+                                'file' => $fileName,
+                                'status' => $fileContent->status()
+                            ];
+                        }
+                    } catch (\Exception $e) {
+                        Log::error('Error downloading submission file', [
+                            'user_id' => $userId,
+                            'file' => $attachment['filename'] ?? 'unknown',
+                            'error' => $e->getMessage()
+                        ]);
+                        $failedDownloads[] = [
+                            'user' => $userName,
+                            'file' => $attachment['filename'] ?? 'unknown',
+                            'error' => $e->getMessage()
+                        ];
+                    }
+                }
+            }
+
+            // Check if any files were downloaded
+            if (empty($downloadedFiles)) {
+                $this->deleteDirectory($tempDir);
+                return response()->json([
+                    'error' => 'Failed to download any submission files',
+                    'failed_downloads' => $failedDownloads
+                ], 500);
+            }
+
+            // Create zip file
+            $zipFileName = "assignment_{$assignmentId}_submissions_" . date('Y-m-d_His') . ".zip";
+            $zipPath = storage_path('app/temp/' . $zipFileName);
+
+            $zip = new \ZipArchive();
+            if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+                $this->deleteDirectory($tempDir);
+                return response()->json(['error' => 'Cannot create zip file'], 500);
+            }
+
+            // Add files to zip
+            foreach ($downloadedFiles as $file) {
+                $relativePath = str_replace($tempDir . '/', '', $file);
+                $zip->addFile($file, $relativePath);
+            }
+
+            $zip->close();
+
+            // Clean up temporary files
+            $this->deleteDirectory($tempDir);
+
+            // Log summary
+            Log::info('Assignment submissions downloaded', [
+                'assignment_id' => $assignmentId,
+                'total_files' => count($downloadedFiles),
+                'failed_downloads' => count($failedDownloads)
+            ]);
+
+            return response()->download($zipPath, $zipFileName, [
+                'Content-Type' => 'application/zip',
+                'Content-Disposition' => 'attachment; filename="' . $zipFileName . '"'
+            ])->deleteFileAfterSend(true);
+
+        } catch (\Exception $e) {
+            Log::error('Error in downloadAssignmentSubmissions', [
+                'course_id' => $courseId,
+                'assignment_id' => $assignmentId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => 'An error occurred while processing submissions',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Recursively delete a directory
+     */
+    private function deleteDirectory($dir)
+    {
+        if (!file_exists($dir)) {
+            return;
+        }
+
+        $files = array_diff(scandir($dir), ['.', '..']);
+        foreach ($files as $file) {
+            $path = $dir . '/' . $file;
+            is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
+        }
+        rmdir($dir);
+    }
 }

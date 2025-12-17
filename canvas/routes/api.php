@@ -21,7 +21,9 @@ Route::prefix('v1')->group(function () {
 Route::prefix('courses')->group(function () {
     Route::post('/submit-assignment', [CanvasController::class, 'submitAssignment']);
     Route::get('/{courseId}', [CanvasController::class, 'getCourses']);
-    route::get('/{courseId}/assignments/{assignmentId}', [CanvasController::class, 'getScores']);
+    Route::get('/{courseId}/assignments', [CanvasController::class, 'getAssignments']);
+    Route::get('/{courseId}/assignments/{assignmentId}', [CanvasController::class, 'getScores']);
+    Route::get('/{courseId}/assignments/{assignmentId}/download-submissions', [CanvasController::class, 'downloadAssignmentSubmissions']);
 });
 Route::prefix('users')->group(function () {
     route::post('/search', [CanvasController::class, 'searchUsers']);

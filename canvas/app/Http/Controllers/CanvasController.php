@@ -48,6 +48,14 @@ class CanvasController extends Controller
         // The service already returns a JSON response, so return it directly
         return $canvas->submitAssignment($courseId, $assignmentId, $files);
     }
-    public
+    public function getAssignments($courseId, CanvasApiService $canvas)
+    {
+        $assignments = $canvas->getAssignments($courseId);
+        return response()->json($assignments);
+    }
 
+    public function downloadAssignmentSubmissions($courseId, $assignmentId, CanvasApiService $canvas)
+    {
+        return $canvas->downloadAssignmentSubmissions($courseId, $assignmentId);
+    }
 }
