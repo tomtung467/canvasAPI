@@ -14,12 +14,17 @@ use App\Http\Controllers\CanvasController;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+// Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+//     return $request->user();
+// });
+Route::prefix('v1')->group(function () {
+Route::prefix('courses')->group(function () {
+    Route::post('/submit-assignment', [CanvasController::class, 'submitAssignment']);
+    Route::get('/{courseId}', [CanvasController::class, 'getCourses']);
+    route::get('/{courseId}/assignments/{assignmentId}', [CanvasController::class, 'getScores']);
 });
-Route::prefix('canvas')->group(function () {
-    Route::get('/courses', [CanvasController::class, 'getCourses']);
-    Route::get('/courses/{courseId}/students', [CanvasController::class, 'getStudents']);
-    Route::get('/users/{userId}', [CanvasController::class, 'getUser']);
+Route::prefix('users')->group(function () {
+    route::post('/search', [CanvasController::class, 'searchUsers']);
+    Route::get('/{userId}', [CanvasController::class, 'getUser']);
 });
-
+});
