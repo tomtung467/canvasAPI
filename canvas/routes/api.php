@@ -17,16 +17,36 @@ use App\Http\Controllers\CanvasController;
 // Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 //     return $request->user();
 // });
-Route::prefix('v1')->group(function () {
-Route::prefix('courses')->group(function () {
-    Route::post('/submit-assignment', [CanvasController::class, 'submitAssignment']);
-    Route::get('/{courseId}', [CanvasController::class, 'getCourses']);
-    Route::get('/{courseId}/assignments', [CanvasController::class, 'getAssignments']);
-    Route::get('/{courseId}/assignments/{assignmentId}', [CanvasController::class, 'getScores']);
-    Route::get('/{courseId}/assignments/{assignmentId}/download-submissions', [CanvasController::class, 'downloadAssignmentSubmissions']);
-});
-Route::prefix('users')->group(function () {
-    route::post('/search', [CanvasController::class, 'searchUsers']);
-    Route::get('/{userId}', [CanvasController::class, 'getUser']);
-});
+
+Route::group([
+    'middleware' => 'api',
+    'prefix' => 'v1'
+], function ($router) {
+
+    // ==================== Authentication Routes ====================
+    Route::post('login', [App\Http\Controllers\AuthController::class, 'login']);
+    Route::post('logout', [App\Http\Controllers\AuthController::class, 'logout']);
+    Route::post('refresh', [App\Http\Controllers\AuthController::class, 'refresh']);
+    Route::get('profile', [App\Http\Controllers\AuthController::class, 'profile']);
+
+    // ==================== Canvas Users Routes ====================
+    Route::prefix('users')->group(function () {
+        // Đặt route cụ thể trước để tránh conflict với /{userId}
+        Route::post('/search', [CanvasController::class, 'searchUsers']); // cần quyền admin
+        Route::get('/{userId}', [CanvasController::class, 'getUser']);
+    });
+
+    // ==================== Canvas Courses Routes ====================
+    Route::prefix('courses')->group(function () {
+        // Course routes
+        Route::get('/{courseId}', [CanvasController::class, 'getCourses']);
+
+        // Assignment routes - đặt routes cụ thể trước
+        Route::post('/assignments/submit', [CanvasController::class, 'submitAssignment']);
+        Route::post('/assignments/download-zip', [CanvasController::class, 'downloadAssignmentZip']);
+
+        // Course assignments routes
+        Route::get('/{courseId}/assignments', [CanvasController::class, 'getAssignments']);
+        Route::get('/{courseId}/assignments/{assignmentId}', [CanvasController::class, 'getScores']);
+    });
 });

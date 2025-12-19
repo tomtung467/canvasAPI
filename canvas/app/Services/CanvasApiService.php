@@ -4,6 +4,8 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Illuminate\Support\Facades\storage;
+use ZipArchive;
 
 class CanvasApiService
 {
@@ -15,8 +17,7 @@ class CanvasApiService
         $this->baseUrl = config('services.canvas.url');
         $this->token = config('services.canvas.token');
     }
-
-    public function request($method, $endpoint, $params = [])
+     public function request($method, $endpoint, $params = [])
     {
         try {
             $response = Http::withToken($this->token)
@@ -49,10 +50,6 @@ class CanvasApiService
 
         return ['ok' => false, 'error' => 'Invalid response', 'status' => $resp->status(), 'detail' => $resp->json()];
     }
-
-    /**
-     * Check that both the course and assignment exist and are accessible by the token
-     */
     public function checkCourseAssignmentExists($courseId, $assignmentId)
     {
         $base = rtrim($this->baseUrl, '/');
@@ -180,188 +177,97 @@ class CanvasApiService
 
     /**
      * Download all student submissions for an assignment as a zip file
+     * Tạo ZIP bài nộp của Assignment
      */
-    public function downloadAssignmentSubmissions($courseId, $assignmentId)
-    {
-        $domain = $this->baseUrl;
-        $token = $this->token;
+    public function downloadAssignmentSubmissions(
+        int $courseId,
+        int $assignmentId
+    ): string {
+        $submissions = $this->getSubmissions($courseId, $assignmentId);
 
-        // Get all submissions for the assignment
-        try {
-            $submissionsResponse = Http::withToken($token)
-                ->timeout(60)
-                ->accept('application/json')
-                ->withHeaders([
-                    'Accept-Encoding' => 'gzip, deflate'
-                ])
-                ->get(
-                    "$domain/api/v1/courses/$courseId/assignments/$assignmentId/submissions",
-                    ['include' => ['user', 'submission_history']]
+        $rootPath = storage_path("app/Canvas/Submissions/{$assignmentId}");
+        if (!is_dir($rootPath)) {
+            mkdir($rootPath, 0777, true);
+        }
+
+        foreach ($submissions as $submission) {
+            if (empty($submission['attachments'])) {
+                continue;
+            }
+
+            $userId = $submission['user_id'];
+            $studentDir = $rootPath . "/student_{$userId}";
+            if (!is_dir($studentDir)) {
+                mkdir($studentDir, 0777, true);
+            }
+
+            foreach ($submission['attachments'] as $file) {
+                $this->downloadFile(
+                    $file['url'],
+                    $studentDir . '/' . $file['filename']
                 );
-
-            if (!$submissionsResponse->successful()) {
-                return response()->json([
-                    'error' => 'Cannot get submissions',
-                    'status' => $submissionsResponse->status(),
-                    'detail' => $submissionsResponse->json()
-                ], 400);
             }
+        }
 
-            $submissions = $submissionsResponse->json();
+        return $this->zipDirectory($rootPath, $assignmentId);
+    }
 
-            // Check if there are any submissions with attachments
-            $hasAttachments = false;
-            foreach ($submissions as $submission) {
-                if (isset($submission['attachments']) && !empty($submission['attachments'])) {
-                    $hasAttachments = true;
-                    break;
-                }
-            }
+    /**
+     * Lấy submissions từ Canvas
+     */
+    protected function getSubmissions(int $courseId, int $assignmentId): array
+    {
+        $url = "{$this->baseUrl}/api/v1/courses/{$courseId}/assignments/{$assignmentId}/submissions";
 
-            if (!$hasAttachments) {
-                return response()->json([
-                    'message' => 'No submissions with attachments found for this assignment',
-                    'total_submissions' => count($submissions)
-                ], 404);
-            }
-
-            // Create a temporary directory to store downloaded files
-            $tempDir = storage_path('app/temp/submissions_' . $assignmentId . '_' . time());
-            if (!file_exists($tempDir)) {
-                mkdir($tempDir, 0755, true);
-            }
-
-            $downloadedFiles = [];
-            $failedDownloads = [];
-
-            // Download each submission's attachments
-            foreach ($submissions as $submission) {
-                if (!isset($submission['attachments']) || empty($submission['attachments'])) {
-                    continue;
-                }
-
-                $userId = $submission['user_id'] ?? 'unknown';
-                $userName = $submission['user']['name'] ?? 'Unknown User';
-
-                // Sanitize username for folder name
-                $safeUserName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $userName);
-                $userDir = $tempDir . '/' . $userId . '_' . $safeUserName;
-
-                if (!file_exists($userDir)) {
-                    mkdir($userDir, 0755, true);
-                }
-
-                foreach ($submission['attachments'] as $attachment) {
-                    try {
-                        $fileUrl = $attachment['url'];
-                        $fileName = $attachment['filename'];
-
-                        // Download the file with proper options
-                        $fileContent = Http::withToken($token)
-                            ->timeout(120)
-                            ->withOptions([
-                                'decode_content' => true,
-                                'verify' => false
-                            ])
-                            ->get($fileUrl);
-
-                        if ($fileContent->successful()) {
-                            $filePath = $userDir . '/' . $fileName;
-                            file_put_contents($filePath, $fileContent->body());
-                            $downloadedFiles[] = $filePath;
-                        } else {
-                            $failedDownloads[] = [
-                                'user' => $userName,
-                                'file' => $fileName,
-                                'status' => $fileContent->status()
-                            ];
-                        }
-                    } catch (\Exception $e) {
-                        Log::error('Error downloading submission file', [
-                            'user_id' => $userId,
-                            'file' => $attachment['filename'] ?? 'unknown',
-                            'error' => $e->getMessage()
-                        ]);
-                        $failedDownloads[] = [
-                            'user' => $userName,
-                            'file' => $attachment['filename'] ?? 'unknown',
-                            'error' => $e->getMessage()
-                        ];
-                    }
-                }
-            }
-
-            // Check if any files were downloaded
-            if (empty($downloadedFiles)) {
-                $this->deleteDirectory($tempDir);
-                return response()->json([
-                    'error' => 'Failed to download any submission files',
-                    'failed_downloads' => $failedDownloads
-                ], 500);
-            }
-
-            // Create zip file
-            $zipFileName = "assignment_{$assignmentId}_submissions_" . date('Y-m-d_His') . ".zip";
-            $zipPath = storage_path('app/temp/' . $zipFileName);
-
-            $zip = new \ZipArchive();
-            if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
-                $this->deleteDirectory($tempDir);
-                return response()->json(['error' => 'Cannot create zip file'], 500);
-            }
-
-            // Add files to zip
-            foreach ($downloadedFiles as $file) {
-                $relativePath = str_replace($tempDir . '/', '', $file);
-                $zip->addFile($file, $relativePath);
-            }
-
-            $zip->close();
-
-            // Clean up temporary files
-            $this->deleteDirectory($tempDir);
-
-            // Log summary
-            Log::info('Assignment submissions downloaded', [
-                'assignment_id' => $assignmentId,
-                'total_files' => count($downloadedFiles),
-                'failed_downloads' => count($failedDownloads)
+        $response = Http::withToken($this->token)
+            ->get($url, [
+                'include[]' => ['attachments'],
+                'per_page'  => 100
             ]);
 
-            return response()->download($zipPath, $zipFileName, [
-                'Content-Type' => 'application/zip',
-                'Content-Disposition' => 'attachment; filename="' . $zipFileName . '"'
-            ])->deleteFileAfterSend(true);
+        if (!$response->successful()) {
+            throw new \Exception('Cannot fetch submissions from Canvas');
+        }
 
-        } catch (\Exception $e) {
-            Log::error('Error in downloadAssignmentSubmissions', [
-                'course_id' => $courseId,
-                'assignment_id' => $assignmentId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+        return $response->json();
+    }
 
-            return response()->json([
-                'error' => 'An error occurred while processing submissions',
-                'message' => $e->getMessage()
-            ], 500);
+    /**
+     * Download file từ Canvas
+     */
+    protected function downloadFile(string $url, string $path): void
+    {
+        $response = Http::withToken($this->token)->get($url);
+
+        if ($response->successful()) {
+            file_put_contents($path, $response->body());
         }
     }
 
     /**
-     * Recursively delete a directory
+     * Zip toàn bộ thư mục
      */
-    private function deleteDirectory($dir)
+    protected function zipDirectory(string $directory, int $assignmentId): string
     {
-        if (!file_exists($dir)) {
-            return;
+        $zipPath = storage_path("app/canvas/assignment_{$assignmentId}_submissions.zip");
+
+        $zip = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($directory)
+        );
+
+        foreach ($files as $file) {
+            if ($file->isDir()) continue;
+
+            $filePath = $file->getRealPath();
+            $relativePath = str_replace($directory . '/', '', $filePath);
+            $zip->addFile($filePath, $relativePath);
         }
 
-        $files = array_diff(scandir($dir), ['.', '..']);
-        foreach ($files as $file) {
-            $path = $dir . '/' . $file;
-            is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
-        }
-        rmdir($dir);
+        $zip->close();
+
+        return $zipPath;
     }
 }

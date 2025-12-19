@@ -19,6 +19,8 @@ class CreateUsersTable extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->unsignedBigInteger('canvas_user_id')->nullable();
+            $table->text('canvas_access_token')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });
