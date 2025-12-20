@@ -21,7 +21,36 @@ class CanvasUserService extends CanvasBaseService
 
         return $user;
     }
+    public function getCurrentUser()
+    {
+        $user = $this->request('get', '/api/v1/users/self');
 
+        $this->logAction(
+            'FETCH_CURRENT_USER',
+            'user',
+            null,
+            null,
+            'success'
+        );
+
+        return $user;
+    }
+    public function getUserEnrollments(int $userId)
+    {
+        $enrollments = $this->request('get', "/api/v1/users/{$userId}/enrollments", [
+            'per_page' => 100
+        ]);
+
+        $this->logAction(
+            'FETCH_USER_ENROLLMENTS',
+            'user',
+            $userId,
+            ['count' => count($enrollments)],
+            'success'
+        );
+
+        return $enrollments;
+    }
     /**
      * Tìm kiếm users theo tên
      */

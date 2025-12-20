@@ -68,7 +68,6 @@ class CanvasAssignmentService extends CanvasBaseService
             ['course_id' => $courseId],
             'success'
         );
-
         return $scores;
     }
 

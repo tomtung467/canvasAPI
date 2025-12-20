@@ -9,6 +9,17 @@ class CanvasSubmissionService extends CanvasBaseService
     /**
      * Download submissions và zip
      */
+    public function getSubmissions(int $courseId, int $assignmentId)
+    {
+        return $this->request(
+            'get',
+            "/api/v1/courses/{$courseId}/assignments/{$assignmentId}/submissions",
+            [
+                'include[]' => ['attachments'],
+                'per_page' => 100,
+            ]
+        );
+    }
     public function downloadAssignmentSubmissions(
         int $courseId,
         int $assignmentId
@@ -61,7 +72,6 @@ class CanvasSubmissionService extends CanvasBaseService
             ],
             'success'
         );
-
         return $zipPath;
     }
 
@@ -103,4 +113,5 @@ class CanvasSubmissionService extends CanvasBaseService
 
         $zip->close();
     }
+
 }
