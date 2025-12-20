@@ -113,5 +113,15 @@ class CanvasSubmissionService extends CanvasBaseService
 
         $zip->close();
     }
+    public function getSelfSubmissions(int $courseId, int $assignmentId)
+    {
+        return $this->request(
+            'get',
+            "/api/v1/courses/{$courseId}/assignments/{$assignmentId}/submissions/self",
+            [
+                'include[]' => ['attachments'],
+            ]
+        );
+    }
 
 }

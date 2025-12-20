@@ -61,6 +61,7 @@ Route::group([
     Route::prefix('submissions')->group(function () {
 
         Route::post('/', [SubmissionController::class, 'getSubmissions']);
+        Route::post('/self', [SubmissionController::class, 'getSelfSubmissions']);
     });
 
 });

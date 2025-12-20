@@ -60,4 +60,23 @@ class SubmissionController extends Controller
             ], 500);
         }
     }
+    public function getSelfSubmissions(Request $request)
+    {
+        $request->validate([
+            'course_id'     => 'required|integer',
+            'assignment_id' => 'required|integer',
+        ]);
+        try {
+            $submissions = $this->submissionService->getSelfSubmissions(
+                $request->course_id,
+                $request->assignment_id
+            );
+            return response()->json($submissions);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to fetch self submissions',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
