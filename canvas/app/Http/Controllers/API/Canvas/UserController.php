@@ -58,7 +58,19 @@ class UserController extends Controller
             ], 500);
         }
     }
-    public function GetUserProfile(request $request)
+    public function GetGroupsInCourse($courseId)
+    {
+        try {
+            $groups = $this->userService->GetGroupsInCourse($courseId);
+            return response()->json($groups);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to fetch groups in course',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function GetUserProfile(Request $request)
     {
         try {
             $user = $this->userService->GetUserProfile($request->user_id);

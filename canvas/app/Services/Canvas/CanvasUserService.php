@@ -74,6 +74,36 @@ class CanvasUserService extends CanvasBaseService
 
         return $data;
     }
+    /**
+     * Lấy nhóm trong course
+     */
+    public function GetGroupsInCourse(int $courseId)
+    {
+        $groups = $this->request('get', "/api/v1/courses/{$courseId}/groups", [
+            'per_page' => 100,
+        ]);
+        $data = collect($groups)->map(function ($item) {
+            return [
+                'id' => $item['id'],
+                'name' => $item['name'],
+                'description' => $item['description'],
+                'created_at' => $item['created_at'],
+            ];
+        })->toArray();
+
+        $this->logAction(
+            'FETCH_GROUPS_IN_COURSE',
+            'course',
+            $courseId,
+            ['count' => count($groups)],
+            'success'
+        );
+
+        return $data;
+    }
+    /**
+     * Lấy profile của user
+     */
     public function GetUserProfile(int $userId)
     {
         $profile = $this->request('get', "/api/v1/users/{$userId}/profile");

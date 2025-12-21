@@ -40,6 +40,7 @@ Route::group([
         Route::post('/search', [UserController::class, 'searchUsers']); // cần quyền admin
         Route::post('/enrollments', [UserController::class, 'GetUserEnrollments']);
         route::post('/profile', [UserController::class, 'GetUserProfile']); // cần quyền admin
+        route::get('{course_id}/groups', [UserController::class, 'GetGroupsInCourse']);
         Route::get('/{userId}', [UserController::class, 'getUser']);
     });
 
