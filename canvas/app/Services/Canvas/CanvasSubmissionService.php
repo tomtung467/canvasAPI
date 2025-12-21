@@ -9,9 +9,15 @@ class CanvasSubmissionService extends CanvasBaseService
     /**
      * Download submissions và zip
      */
+    function formatsize($size)
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $power = $size > 0 ? floor(log($size, 1024)) : 0;
+        return number_format($size / pow(1024, $power), 2, '.', ',') . ' ' . $units[$power];
+    }
     public function getSubmissions(int $courseId, int $assignmentId)
     {
-        return $this->request(
+        $submissions = $this->request(
             'get',
             "/api/v1/courses/{$courseId}/assignments/{$assignmentId}/submissions",
             [
@@ -19,6 +25,32 @@ class CanvasSubmissionService extends CanvasBaseService
                 'per_page' => 100,
             ]
         );
+        $data = collect($submissions)->map(function ($item) {
+            return [
+            'id' => $item['id'],
+            'user_id' => $item['user_id'],
+            'submission_type' => $item['submission_type'],
+            'workflow_state' => $item['workflow_state'],
+            'grade' => $item['grade'],
+            'submitted_at' => $item['submitted_at'],
+             'attachments' =>
+                isset($item['attachments'])
+                ? collect($item['attachments'])->map(function ($a) {
+                    return [
+                        'id' => $a['id'],
+                        'filename' => $a['filename'],
+                        'display_name' => $a['display_name'],
+                        'url' => $a['url'],
+                        'size' => $this->formatsize($a['size']),
+                        'content_type' => $a['content-type'],
+                        'created_at' => $a['created_at'],
+                    ];
+                })->toArray()
+                : [],
+            ];
+        })->toArray();
+
+        return $data;
     }
     public function downloadAssignmentSubmissions(
         int $courseId,
@@ -115,13 +147,43 @@ class CanvasSubmissionService extends CanvasBaseService
     }
     public function getSelfSubmissions(int $courseId, int $assignmentId)
     {
-        return $this->request(
+        $self = $this->request(
             'get',
             "/api/v1/courses/{$courseId}/assignments/{$assignmentId}/submissions/self",
             [
                 'include[]' => ['attachments'],
             ]
         );
+        $data = collect($self)->only([
+            'id',
+            'user_id',
+            'submission_type',
+            'workflow_state',
+            'grade',
+            'submitted_at',
+        ])->toArray();
+        $data['attachments'] = isset($self['attachments'])
+        ? collect($self['attachments'])->map(function ($a) {
+            return [
+                'id' => $a['id'],
+                'filename' => $a['filename'],
+                'display_name' => $a['display_name'],
+                'url' => $a['url'],
+                'size' => $this->formatsize($a['size']),
+                'content_type' => $a['content-type'],
+                'created_at' => $a['created_at'],
+            ];
+            })->toArray()
+        : [];
+
+        $this->logAction(
+            'FETCH_SELF_SUBMISSIONS',
+            'assignment',
+            $assignmentId,
+            null,
+            'success'
+        );
+        return $data;
     }
 
 }

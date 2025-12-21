@@ -60,7 +60,15 @@ class CanvasAssignmentService extends CanvasBaseService
             'get',
             "/api/v1/courses/{$courseId}/assignments/{$assignmentId}"
         );
-
+        $data = collect($scores)->only([
+            'id',
+            'name',
+            'points_possible',
+            'due_at',
+            'submission_types',
+            'allowed_extensions',
+            'turnitin_enabled',
+        ])->toArray();
         $this->logAction(
             'FETCH_SCORES',
             'assignment',
@@ -68,7 +76,7 @@ class CanvasAssignmentService extends CanvasBaseService
             ['course_id' => $courseId],
             'success'
         );
-        return $scores;
+        return $data;
     }
 
     /**
@@ -145,7 +153,7 @@ class CanvasAssignmentService extends CanvasBaseService
             [
                 'submission' => [
                     'submission_type' => 'online_upload',
-                    'file_ids' => $fileIds
+                    'file_ids' => $fileIds,
                 ]
             ]
         );

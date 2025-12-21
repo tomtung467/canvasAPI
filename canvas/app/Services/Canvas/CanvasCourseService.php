@@ -46,6 +46,16 @@ class CanvasCourseService extends CanvasBaseService
         $coursesData = $this->request('get', "/api/v1/users/self/courses", [
             'per_page' => 100
         ]);
+        $data = collect($coursesData)->map(function ($item) {
+            return [
+                'id' => $item['id'],
+                'name' => $item['name'],
+                'course_code' => $item['course_code'],
+                'start_at' => $item['start_at'],
+                'end_at' => $item['end_at'],
+                'enrollments' => $item['enrollments'] ?? null,
+            ];
+        })->toArray();
         foreach ($coursesData as $courseData) {
             CourseCache::updateOrCreate(
                 ['canvas_course_id' => $courseData['id']],
@@ -64,7 +74,7 @@ class CanvasCourseService extends CanvasBaseService
             ['count' => count($coursesData)],
             'success'
         );;
-        return $coursesData;
+        return $data;
     }
     public function getUsersInCourse(int $courseId)
     {

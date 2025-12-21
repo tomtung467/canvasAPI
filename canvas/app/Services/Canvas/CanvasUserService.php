@@ -10,6 +10,13 @@ class CanvasUserService extends CanvasBaseService
     public function getUser(int $userId)
     {
         $user = $this->request('get', "/api/v1/users/{$userId}");
+        $data = collect($user)->only([
+            'id',
+            'name',
+            'email',
+            'created_at',
+            'last_login'
+        ])->toArray();
 
         $this->logAction(
             'FETCH_USER',
@@ -19,11 +26,18 @@ class CanvasUserService extends CanvasBaseService
             'success'
         );
 
-        return $user;
+        return $data;
     }
     public function getCurrentUser()
     {
         $user = $this->request('get', '/api/v1/users/self');
+        $data = collect($user)->only([
+            'id',
+            'name',
+            'email',
+            'created_at',
+            'last_login'
+        ])->toArray();
 
         $this->logAction(
             'FETCH_CURRENT_USER',
@@ -33,13 +47,22 @@ class CanvasUserService extends CanvasBaseService
             'success'
         );
 
-        return $user;
+        return $data;
     }
     public function getUserEnrollments(int $userId)
     {
         $enrollments = $this->request('get', "/api/v1/users/{$userId}/enrollments", [
-            'per_page' => 100
+            'per_page' => 100,
         ]);
+        $data = collect($enrollments)->map(function ($item) {
+            return [
+                'course_id' => $item['course_id'],
+                'enrollment_state' => $item['enrollment_state'],
+                'role' => $item['role'],
+                'created_at' => $item['created_at'],
+                'last_activity_at' => $item['last_activity_at'],
+            ];
+        })->toArray();
 
         $this->logAction(
             'FETCH_USER_ENROLLMENTS',
@@ -49,7 +72,29 @@ class CanvasUserService extends CanvasBaseService
             'success'
         );
 
-        return $enrollments;
+        return $data;
+    }
+    public function GetUserProfile(int $userId)
+    {
+        $profile = $this->request('get', "/api/v1/users/{$userId}/profile");
+        $data = collect($profile)->only([
+            'id',
+            'name',
+            'avatar_url',
+            'primary_email',
+            'created_at',
+            'last_login'
+        ])->toArray();
+
+        $this->logAction(
+            'FETCH_USER_PROFILE',
+            'user',
+            $userId,
+            null,
+            'success'
+        );
+
+        return $data;
     }
     /**
      * Tìm kiếm users theo tên

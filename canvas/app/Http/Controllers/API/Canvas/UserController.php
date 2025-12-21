@@ -58,6 +58,18 @@ class UserController extends Controller
             ], 500);
         }
     }
+    public function GetUserProfile(request $request)
+    {
+        try {
+            $user = $this->userService->GetUserProfile($request->user_id);
+            return response()->json($user);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to fetch user profile',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
     public function searchUsers(Request $request)
     {
         try {

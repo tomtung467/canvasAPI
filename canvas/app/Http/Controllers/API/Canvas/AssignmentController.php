@@ -25,30 +25,14 @@ class AssignmentController extends Controller
             'file'          => 'required|array',
             'file.*'        => 'file'
         ]);
-
         try {
             $courseId = $request->input('course_id');
             $assignmentId = $request->input('assignment_id');
             $files = $request->file('file');
 
-            $result = $this->assignmentService->submitAssignment(
-                $courseId,
-                $assignmentId,
-                $files
-            );
+            $submission = $this->assignmentService->submitAssignment($courseId, $assignmentId, $files);
 
-            if (!$result['success']) {
-                return response()->json([
-                    'error' => $result['error'],
-                    'detail' => $result['detail'] ?? null
-                ], 400);
-            }
-
-            return response()->json([
-                'message' => $result['message'],
-                'files' => $result['files'],
-                'file_ids' => $result['file_ids']
-            ]);
+            return response()->json($submission);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Failed to submit assignment',
