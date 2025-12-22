@@ -79,4 +79,27 @@ class SubmissionController extends Controller
             ], 500);
         }
     }
+    public function updateScore(Request $request)
+    {
+        $request->validate([
+            'course_id'     => 'required|integer',
+            'assignment_id' => 'required|integer',
+            'user_id'       => 'required|integer',
+            'score'         => 'required',
+        ]);
+        try {
+            $response = $this->submissionService->updatescore(
+                $request->course_id,
+                $request->assignment_id,
+                $request->user_id,
+                $request->score
+            );
+            return response()->json($response);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to update submission score',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

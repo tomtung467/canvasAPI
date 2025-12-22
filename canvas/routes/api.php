@@ -63,6 +63,7 @@ Route::group([
     Route::prefix('submissions')->group(function () {
 
         Route::post('/', [SubmissionController::class, 'getSubmissions']);
+        route::post('/update-score', [SubmissionController::class, 'updateScore']);
         Route::post('/self', [SubmissionController::class, 'getSelfSubmissions']);
     });
 

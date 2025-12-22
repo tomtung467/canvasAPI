@@ -185,5 +185,32 @@ class CanvasSubmissionService extends CanvasBaseService
         );
         return $data;
     }
+    public function updatescore(int $courseId, int $assignmentId, int $userId, $score)
+    {
+        $response = $this->request(
+            'put',
+            "/api/v1/courses/{$courseId}/assignments/{$assignmentId}/submissions/{$userId}",
+            [
+                'submission' => [
+                    'posted_grade' => $score,
+                ],
+            ]
+        );
+
+        $this->logAction(
+            'UPDATE_SUBMISSION_SCORE',
+            'submission',
+            $response['id'] ?? null,
+            [
+                'course_id' => $courseId,
+                'assignment_id' => $assignmentId,
+                'user_id' => $userId,
+                'new_score' => $score,
+            ],
+            'success'
+        );
+
+        return $response;
+    }
 
 }
